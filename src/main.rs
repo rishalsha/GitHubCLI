@@ -1,14 +1,11 @@
+use clap::{Parser, Subcommand};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use ratatui::{
-    backend::CrosstermBackend,
-    Terminal,
-};
+use ratatui::{Terminal, backend::CrosstermBackend};
 use std::{error::Error, io};
-use clap::{Parser, Subcommand};
 
 mod app;
 mod auth;
@@ -29,7 +26,10 @@ struct Args {
     #[arg(short = 'a', long = "auth", help = "Re-authenticate with a new token")]
     auth: bool,
 
-    #[arg(long = "browser", help = "Extract cookies automatically from a browser (e.g. chrome, firefox)")]
+    #[arg(
+        long = "browser",
+        help = "Extract cookies automatically from a browser (e.g. chrome, firefox)"
+    )]
     browser: Option<String>,
 
     #[command(subcommand)]
@@ -93,7 +93,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // create app and run it
     let mut app = App::new(github_client.clone());
-    
+
     // Load from cache first
     app.user = github::get_cached_user();
     if let Some(repos) = github::get_cached_repos() {
@@ -110,13 +110,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tokio::spawn(async move {
         // Fetch user
         match gh_client.get_user_info().await {
-            Ok(u) => { let _ = tx.send(app::AppUpdate::User(u)); }
-            Err(e) => { let _ = tx.send(app::AppUpdate::UserError(e.to_string())); }
+            Ok(u) => {
+                let _ = tx.send(app::AppUpdate::User(u));
+            }
+            Err(e) => {
+                let _ = tx.send(app::AppUpdate::UserError(e.to_string()));
+            }
         }
         // Fetch repos
         match gh_client.list_repos().await {
-            Ok(r) => { let _ = tx.send(app::AppUpdate::Repos(r)); }
-            Err(e) => { let _ = tx.send(app::AppUpdate::ReposError(e.to_string())); }
+            Ok(r) => {
+                let _ = tx.send(app::AppUpdate::Repos(r));
+            }
+            Err(e) => {
+                let _ = tx.send(app::AppUpdate::ReposError(e.to_string()));
+            }
         }
     });
 
@@ -135,7 +143,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> Result<(), Box<dyn Error>> {
+async fn run_app(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    app: &mut App,
+) -> Result<(), Box<dyn Error>> {
     loop {
         // Poll for asynchronous app updates from background fetches
         if let Some(ref mut rx) = app.update_rx {
@@ -147,7 +158,7 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                         if !app.repos.is_empty() && app.state.selected().is_none() {
                             app.state.select(Some(0));
                         }
-                    },
+                    }
                     app::AppUpdate::UserError(e) => {
                         app.user = Some(github::User {
                             login: "Fetch Error".into(),
@@ -157,7 +168,7 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                             followers: 0,
                             following: 0,
                         });
-                    },
+                    }
                     app::AppUpdate::ReposError(e) => {
                         app.mode = AppMode::Error(format!("Failed to load repos: {}", e));
                     }
@@ -169,12 +180,12 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
 
         if event::poll(std::time::Duration::from_millis(50))? {
             let event = event::read()?;
-            
+
             match app.mode {
                 AppMode::Normal => {
                     if let Event::Key(key) = event {
                         match key.code {
-                            KeyCode::Char('q') => return Ok(()),
+                            KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
                             KeyCode::Char('/') => {
                                 app.mode = AppMode::Searching;
                                 app.input = tui_input::Input::new(app.search_query.clone());
@@ -231,7 +242,10 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                 AppMode::CreatingRepoVisibility => {
                     if let Event::Key(key) = event {
                         match key.code {
-                            KeyCode::Up | KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('k') => {
+                            KeyCode::Up
+                            | KeyCode::Down
+                            | KeyCode::Char('j')
+                            | KeyCode::Char('k') => {
                                 app.new_repo_private = !app.new_repo_private;
                             }
                             KeyCode::Enter => {
@@ -311,7 +325,9 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                                         if confirm == repo.full_name {
                                             app.delete_selected_repo().await?;
                                         } else {
-                                            app.mode = AppMode::Error("Repository name did not match.".into());
+                                            app.mode = AppMode::Error(
+                                                "Repository name did not match.".into(),
+                                            );
                                             app.input.reset();
                                         }
                                     }
@@ -359,23 +375,27 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                         }
                     }
                 }
-                AppMode::PromptInitGit { ref remote_name, ref clone_url } => {
+                AppMode::PromptInitGit {
+                    ref remote_name,
+                    ref clone_url,
+                } => {
                     if let Event::Key(key) = event {
                         match key.code {
                             KeyCode::Enter => {
                                 let remote_name = remote_name.clone();
                                 let clone_url = clone_url.clone();
                                 match github::init_git() {
-                                    Ok(_) => {
-                                        match github::add_remote(&remote_name, &clone_url) {
-                                            Ok(_) => {
-                                                app.mode = AppMode::Message(format!("Git initialized and remote '{}' added successfully!", remote_name));
-                                            }
-                                            Err(e) => {
-                                                app.mode = AppMode::Error(e.to_string());
-                                            }
+                                    Ok(_) => match github::add_remote(&remote_name, &clone_url) {
+                                        Ok(_) => {
+                                            app.mode = AppMode::Message(format!(
+                                                "Git initialized and remote '{}' added successfully!",
+                                                remote_name
+                                            ));
                                         }
-                                    }
+                                        Err(e) => {
+                                            app.mode = AppMode::Error(e.to_string());
+                                        }
+                                    },
                                     Err(e) => {
                                         app.mode = AppMode::Error(e.to_string());
                                     }
