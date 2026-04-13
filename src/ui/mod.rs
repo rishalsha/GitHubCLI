@@ -20,8 +20,8 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         .constraints([Constraint::Percentage(40), Constraint::Percentage(60)].as_ref())
         .split(main_chunks[0]);
 
-    draw_left_pane(f, app, chunks[0]);
-    draw_right_pane(f, app, chunks[1]);
+    draw_details_pane(f, app, chunks[0]);
+    draw_repos_pane(f, app, chunks[1]);
     draw_footer(f, main_chunks[1]);
     
     match &app.mode {
@@ -66,7 +66,7 @@ fn draw_footer(f: &mut Frame, area: Rect) {
     f.render_widget(p, area);
 }
 
-fn draw_left_pane(f: &mut Frame, app: &mut App, area: Rect) {
+fn draw_details_pane(f: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(8), Constraint::Min(0)].as_ref())
@@ -101,27 +101,7 @@ fn draw_left_pane(f: &mut Frame, app: &mut App, area: Rect) {
         .wrap(Wrap { trim: true });
     f.render_widget(user_block, chunks[0]);
 
-    // Repos List
-    let repos: Vec<ListItem> = app
-        .repos
-        .iter()
-        .map(|repo| ListItem::new(repo.name.clone()))
-        .collect();
-
-    let list = List::new(repos)
-        .block(Block::default().title("Repositories").borders(Borders::ALL))
-        .highlight_style(
-            Style::default()
-                .bg(Color::DarkGray)
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol(">> ");
-
-    f.render_stateful_widget(list, chunks[1], &mut app.state);
-}
-
-fn draw_right_pane(f: &mut Frame, app: &mut App, area: Rect) {
+    // Repository Details
     let selected_repo = app.state.selected().and_then(|i| app.repos.get(i));
 
     if let Some(repo) = selected_repo {
@@ -159,12 +139,32 @@ fn draw_right_pane(f: &mut Frame, app: &mut App, area: Rect) {
             .block(Block::default().borders(Borders::ALL).title("Repository Details"))
             .wrap(Wrap { trim: true });
 
-        f.render_widget(detail_block, area);
+        f.render_widget(detail_block, chunks[1]);
     } else {
         let detail_block = Paragraph::new("Select a repository to view details\n\nPress 'c' to create a new repository")
             .block(Block::default().borders(Borders::ALL).title("Repository Details"));
-        f.render_widget(detail_block, area);
+        f.render_widget(detail_block, chunks[1]);
     }
+}
+
+fn draw_repos_pane(f: &mut Frame, app: &mut App, area: Rect) {
+    let repos: Vec<ListItem> = app
+        .repos
+        .iter()
+        .map(|repo| ListItem::new(repo.name.clone()))
+        .collect();
+
+    let list = List::new(repos)
+        .block(Block::default().title("Repositories").borders(Borders::ALL))
+        .highlight_style(
+            Style::default()
+                .bg(Color::DarkGray)
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol(">> ");
+
+    f.render_stateful_widget(list, area, &mut app.state);
 }
 
 fn draw_create_repo_popup(f: &mut Frame, app: &mut App) {
