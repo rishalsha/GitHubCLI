@@ -12,7 +12,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
-        .constraints([Constraint::Min(0), Constraint::Length(1)].as_ref())
+        .constraints([Constraint::Min(0), Constraint::Length(2)].as_ref())
         .split(f.area());
 
     let chunks = Layout::default()
@@ -61,6 +61,7 @@ fn draw_footer(f: &mut Frame, area: Rect) {
 
     let p = Paragraph::new(Line::from(footer_text))
         .alignment(ratatui::layout::Alignment::Center)
+        .wrap(ratatui::widgets::Wrap { trim: true })
         .style(Style::default().fg(Color::DarkGray));
 
     f.render_widget(p, area);
