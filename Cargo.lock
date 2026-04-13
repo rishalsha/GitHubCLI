@@ -3,24 +3,6 @@
 version = 4
 
 [[package]]
-name = "GitHubCLI"
-version = "0.1.0"
-dependencies = [
- "clap",
- "crossterm",
- "dialoguer",
- "directories",
- "dotenvy",
- "open",
- "ratatui",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
- "tui-input",
-]
-
-[[package]]
 name = "aho-corasick"
 version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -772,6 +754,24 @@ dependencies = [
  "r-efi 6.0.0",
  "wasip2",
  "wasip3",
+]
+
+[[package]]
+name = "ghcli"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "crossterm",
+ "dialoguer",
+ "directories",
+ "dotenvy",
+ "open",
+ "ratatui",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tui-input",
 ]
 
 [[package]]

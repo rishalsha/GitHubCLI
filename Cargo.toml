@@ -1,7 +1,12 @@
 [package]
-name = "GitHubCLI"
+name = "ghcli"
+description = "A terminal UI for GitHub"
 version = "0.1.0"
 edition = "2024"
+
+[[bin]]
+name = "ghcli"
+path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.6.0", features = ["derive"] }
