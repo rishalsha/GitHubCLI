@@ -199,7 +199,7 @@ async fn run_app(
                                     app.input.reset();
                                 }
                             }
-                            KeyCode::Enter | KeyCode::Char('d') => {
+                            KeyCode::Char('d') => {
                                 if !app.repos.is_empty() {
                                     app.mode = AppMode::CloningRepoPath;
                                 }
@@ -210,7 +210,7 @@ async fn run_app(
                                     app.input.reset();
                                 }
                             }
-                            KeyCode::Char('o') | KeyCode::Char('b') => {
+                            KeyCode::Enter | KeyCode::Char('o') | KeyCode::Char('b') => {
                                 app.open_selected_repo_in_browser();
                             }
                             KeyCode::Down | KeyCode::Char('j') => app.next(),
