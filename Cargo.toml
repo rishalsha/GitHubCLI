@@ -3,6 +3,9 @@ name = "ghcli"
 description = "A terminal UI for GitHub"
 version = "1.0.1"
 edition = "2024"
+license = "MIT"
+repository = "https://github.com/rishalsha/GitHubCLI"
+readme = "README.md"
 
 [[bin]]
 name = "ghcli"
