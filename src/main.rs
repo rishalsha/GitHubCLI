@@ -305,7 +305,7 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                             _ => {
                                 app.input.handle_event(&Event::Key(key));
                                 app.search_query = app.input.value().to_string();
-                                app.filter_repos();
+                                app.search_repos();
                             }
                         }
                     }

@@ -38,7 +38,7 @@ impl App {
             input: Input::default(),
             search_query: String::new(),
             new_repo_name: String::new(),
-            new_repo_private: true,
+            new_repo_private: false,
             clone_path: String::new(),
         }
     }
@@ -83,26 +83,21 @@ impl App {
     }
 
     pub async fn fetch_repos(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.all_repos = github::list_repos().await?;
-        self.filter_repos();
+        self.repos = github::list_repos().await?;
+        if !self.repos.is_empty() {
+            self.state.select(Some(0));
+        }
         Ok(())
     }
 
-    pub fn filter_repos(&mut self) {
+    pub fn search_repos(&mut self) {
         let query = self.search_query.trim().to_lowercase();
         if query.is_empty() {
-            self.repos = self.all_repos.clone();
-        } else {
-            self.repos = self.all_repos
-                .iter()
-                .filter(|r| r.name.to_lowercase().contains(&query))
-                .cloned()
-                .collect();
+            return;
         }
-        if !self.repos.is_empty() {
-            self.state.select(Some(0));
-        } else {
-            self.state.select(None);
+        
+        if let Some(index) = self.repos.iter().position(|r| r.name.to_lowercase().contains(&query)) {
+            self.state.select(Some(index));
         }
     }
 

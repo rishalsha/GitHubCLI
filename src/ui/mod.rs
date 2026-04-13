@@ -112,7 +112,7 @@ fn draw_left_pane(f: &mut Frame, app: &mut App, area: Rect) {
         .block(Block::default().title("Repositories").borders(Borders::ALL))
         .highlight_style(
             Style::default()
-                .bg(Color::Blue)
+                .bg(Color::DarkGray)
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
         )
@@ -207,8 +207,8 @@ fn draw_create_repo_visibility_popup(f: &mut Frame, app: &mut App) {
     f.render_widget(block, area);
 
     let list_items = vec![
-        ListItem::new(if app.new_repo_private { "[X] Private" } else { "[ ] Private" }),
         ListItem::new(if !app.new_repo_private { "[X] Public" } else { "[ ] Public" }),
+        ListItem::new(if app.new_repo_private { "[X] Private" } else { "[ ] Private" }),
     ];
 
     let p = List::new(list_items)
@@ -367,7 +367,7 @@ fn draw_search_popup(f: &mut Frame, app: &mut App) {
     let area = centered_rect(50, 20, f.area());
     f.render_widget(Clear, area);
 
-    let text = format!("Query: {}\n\nType to filter. Press Enter or Esc to dismiss.", app.input.value());
+    let text = format!("Query: {}\n\nType to search. Selection moves to the first match. Press Enter or Esc to dismiss.", app.input.value());
     let p = Paragraph::new(text)
         .wrap(Wrap { trim: true })
         .block(block);
