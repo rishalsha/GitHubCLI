@@ -1,6 +1,6 @@
 use ratatui::widgets::ListState;
 use tui_input::Input;
-use crate::github::{self, Repo, User};
+use crate::github::{self, Repo, User, GithubClient};
 
 pub enum AppMode {
     Normal,
@@ -16,7 +16,15 @@ pub enum AppMode {
     Message(String),
 }
 
+pub enum AppUpdate {
+    User(User),
+    Repos(Vec<Repo>),
+    UserError(String),
+    ReposError(String),
+}
+
 pub struct App {
+    pub github: GithubClient,
     pub user: Option<User>,
     pub repos: Vec<Repo>,
     pub state: ListState,
@@ -26,11 +34,13 @@ pub struct App {
     pub new_repo_name: String,
     pub new_repo_private: bool,
     pub clone_path: String,
+    pub update_rx: Option<tokio::sync::mpsc::UnboundedReceiver<AppUpdate>>,
 }
 
 impl App {
-    pub fn new() -> App {
+    pub fn new(github: GithubClient) -> App {
         App {
+            github,
             user: None,
             repos: vec![],
             state: ListState::default(),
@@ -40,6 +50,7 @@ impl App {
             new_repo_name: String::new(),
             new_repo_private: false,
             clone_path: String::new(),
+            update_rx: None,
         }
     }
 
@@ -77,13 +88,9 @@ impl App {
         self.state.select(Some(i));
     }
 
-    pub async fn fetch_user_info(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.user = Some(github::get_user_info().await?);
-        Ok(())
-    }
 
     pub async fn fetch_repos(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.repos = github::list_repos().await?;
+        self.repos = self.github.list_repos().await?;
         if !self.repos.is_empty() {
             self.state.select(Some(0));
         }
@@ -106,7 +113,7 @@ impl App {
         let is_private = self.new_repo_private;
 
         if !repo_name.is_empty() {
-            match github::create_repo(&repo_name, is_private).await {
+            match self.github.create_repo(&repo_name, is_private).await {
                 Ok(_) => {
                     self.input.reset();
                     self.new_repo_name.clear();
@@ -124,7 +131,7 @@ impl App {
     pub fn clone_selected_repo(&mut self, path: &str, rename: &str) {
         if let Some(i) = self.state.selected() {
             if let Some(repo) = self.repos.get(i) {
-                match github::clone_repo(&repo.clone_url, path, rename) {
+                match self.github.clone_repo(&repo.clone_url, path, rename) {
                     Ok(_) => {
                         self.mode = AppMode::Message("Repository cloned successfully!".into());
                     }
@@ -144,6 +151,10 @@ impl App {
         if let Some(i) = self.state.selected() {
             if let Some(repo) = self.repos.get(i).cloned() {
                 let name = if remote_name.trim().is_empty() { "origin" } else { remote_name.trim() };
+                // Actually add_remote could stay static since it just calls git.
+                // But if we moved it inside GithubClient or left it, I should just use `github::add_remote` if it wasn't moved.
+                // Wait, in github.rs I didn't move it inside impl GithubClient. So it's still `github::add_remote`. 
+                // Ah, let me double check my github.rs modification. I'll leave add_remote and delete_repo as is for now and verify.
                 match github::add_remote(name, &repo.clone_url) {
                     Ok(_) => {
                         self.mode = AppMode::Message(format!("Remote '{}' added successfully!", name));
@@ -170,7 +181,7 @@ impl App {
     pub async fn delete_selected_repo(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(i) = self.state.selected() {
             if let Some(repo) = self.repos.get(i).cloned() {
-                match github::delete_repo(&repo.full_name).await {
+                match self.github.delete_repo(&repo.full_name).await {
                     Ok(_) => {
                         self.mode = AppMode::Normal;
                         self.input.reset();

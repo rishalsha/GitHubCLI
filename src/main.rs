@@ -81,9 +81,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     };
-    unsafe {
-        std::env::set_var("GITHUB_TOKEN", creds.token);
-    }
+
+    let github_client = github::GithubClient::new(creds.token);
 
     // setup terminal
     enable_raw_mode()?;
@@ -93,11 +92,33 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     // create app and run it
-    let mut app = App::new();
+    let mut app = App::new(github_client.clone());
     
-    // Initial fetches
-    app.fetch_user_info().await?;
-    app.fetch_repos().await?;
+    // Load from cache first
+    app.user = github::get_cached_user();
+    if let Some(repos) = github::get_cached_repos() {
+        app.repos = repos;
+        if !app.repos.is_empty() {
+            app.state.select(Some(0));
+        }
+    }
+
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    app.update_rx = Some(rx);
+
+    let gh_client = github_client.clone();
+    tokio::spawn(async move {
+        // Fetch user
+        match gh_client.get_user_info().await {
+            Ok(u) => { let _ = tx.send(app::AppUpdate::User(u)); }
+            Err(e) => { let _ = tx.send(app::AppUpdate::UserError(e.to_string())); }
+        }
+        // Fetch repos
+        match gh_client.list_repos().await {
+            Ok(r) => { let _ = tx.send(app::AppUpdate::Repos(r)); }
+            Err(e) => { let _ = tx.send(app::AppUpdate::ReposError(e.to_string())); }
+        }
+    });
 
     let res = run_app(&mut terminal, &mut app).await;
 
@@ -116,6 +137,34 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> Result<(), Box<dyn Error>> {
     loop {
+        // Poll for asynchronous app updates from background fetches
+        if let Some(ref mut rx) = app.update_rx {
+            while let Ok(update) = rx.try_recv() {
+                match update {
+                    app::AppUpdate::User(u) => app.user = Some(u),
+                    app::AppUpdate::Repos(r) => {
+                        app.repos = r;
+                        if !app.repos.is_empty() && app.state.selected().is_none() {
+                            app.state.select(Some(0));
+                        }
+                    },
+                    app::AppUpdate::UserError(e) => {
+                        app.user = Some(github::User {
+                            login: "Fetch Error".into(),
+                            name: None,
+                            bio: Some(e),
+                            public_repos: 0,
+                            followers: 0,
+                            following: 0,
+                        });
+                    },
+                    app::AppUpdate::ReposError(e) => {
+                        app.mode = AppMode::Error(format!("Failed to load repos: {}", e));
+                    }
+                }
+            }
+        }
+
         terminal.draw(|f| ui::ui(f, app))?;
 
         if event::poll(std::time::Duration::from_millis(50))? {
