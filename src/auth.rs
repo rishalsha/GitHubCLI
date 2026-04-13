@@ -44,9 +44,7 @@ impl GitHubCredentials {
 /// Handles prompting the user to paste their PAT manually
 pub fn manual_auth_flow() -> Result<GitHubCredentials, String> {
     println!("\nPlease create a Personal Access Token on GitHub.");
-    println!("(Settings -> Developer Settings -> Personal access tokens)\n");
-    println!("\nPlease create a Personal Access Token on GitHub.");
-    println!("(Settings -> Developer Settings -> Personal access tokens)\n");
+    println!("(Settings -> Developer Settings -> Personal access tokens -> Generate new token \n-> General Token -> Select scopes -> Generate token)\n");
 
     let token: String = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("Enter GITHUB_TOKEN (paste and press enter)")

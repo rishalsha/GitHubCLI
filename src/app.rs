@@ -9,6 +9,9 @@ pub enum AppMode {
     CloningRepoPath,
     CloningRepoRename,
     DeletingRepoConfirmation,
+    AddingRemoteName,
+    Searching,
+    PromptInitGit { remote_name: String, clone_url: String },
     Error(String),
     Message(String),
 }
@@ -19,6 +22,7 @@ pub struct App {
     pub state: ListState,
     pub mode: AppMode,
     pub input: Input,
+    pub search_query: String,
     pub new_repo_name: String,
     pub new_repo_private: bool,
     pub clone_path: String,
@@ -32,6 +36,7 @@ impl App {
             state: ListState::default(),
             mode: AppMode::Normal,
             input: Input::default(),
+            search_query: String::new(),
             new_repo_name: String::new(),
             new_repo_private: true,
             clone_path: String::new(),
@@ -78,11 +83,27 @@ impl App {
     }
 
     pub async fn fetch_repos(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.repos = github::list_repos().await?;
+        self.all_repos = github::list_repos().await?;
+        self.filter_repos();
+        Ok(())
+    }
+
+    pub fn filter_repos(&mut self) {
+        let query = self.search_query.trim().to_lowercase();
+        if query.is_empty() {
+            self.repos = self.all_repos.clone();
+        } else {
+            self.repos = self.all_repos
+                .iter()
+                .filter(|r| r.name.to_lowercase().contains(&query))
+                .cloned()
+                .collect();
+        }
         if !self.repos.is_empty() {
             self.state.select(Some(0));
+        } else {
+            self.state.select(None);
         }
-        Ok(())
     }
 
     pub async fn create_repo(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -124,6 +145,33 @@ impl App {
         }
     }
 
+    pub fn add_remote_to_repo(&mut self, remote_name: &str) {
+        if let Some(i) = self.state.selected() {
+            if let Some(repo) = self.repos.get(i).cloned() {
+                let name = if remote_name.trim().is_empty() { "origin" } else { remote_name.trim() };
+                match github::add_remote(name, &repo.clone_url) {
+                    Ok(_) => {
+                        self.mode = AppMode::Message(format!("Remote '{}' added successfully!", name));
+                    }
+                    Err(e) => {
+                        if e.to_string() == "NOT_A_GIT_REPO" {
+                            self.mode = AppMode::PromptInitGit {
+                                remote_name: name.to_string(),
+                                clone_url: repo.clone_url,
+                            };
+                        } else {
+                            self.mode = AppMode::Error(e.to_string());
+                        }
+                    }
+                }
+            } else {
+                self.mode = AppMode::Normal;
+            }
+        } else {
+            self.mode = AppMode::Normal;
+        }
+    }
+
     pub async fn delete_selected_repo(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(i) = self.state.selected() {
             if let Some(repo) = self.repos.get(i).cloned() {
@@ -141,5 +189,15 @@ impl App {
             }
         }
         Ok(())
+    }
+
+    pub fn open_selected_repo_in_browser(&mut self) {
+        if let Some(i) = self.state.selected() {
+            if let Some(repo) = self.repos.get(i) {
+                if let Err(e) = open::that(&repo.html_url) {
+                    self.mode = AppMode::Error(format!("Failed to open browser: {}", e));
+                }
+            }
+        }
     }
 }

@@ -143,3 +143,41 @@ pub fn clone_repo(clone_url: &str, path: &str, rename: &str) -> Result<(), Box<d
     }
     Ok(())
 }
+
+pub fn add_remote(remote_name: &str, clone_url: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let mut cmd = std::process::Command::new("git");
+    cmd.arg("remote");
+    cmd.arg("add");
+    cmd.arg(remote_name);
+    cmd.arg(clone_url);
+
+    let output = cmd
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .output()?;
+
+    if !output.status.success() {
+        let err_msg = String::from_utf8_lossy(&output.stderr);
+        if err_msg.to_lowercase().contains("not a git repository") {
+            return Err("NOT_A_GIT_REPO".into());
+        }
+        return Err(format!("Git failed: {}", err_msg).into());
+    }
+    Ok(())
+}
+
+pub fn init_git() -> Result<(), Box<dyn std::error::Error>> {
+    let mut cmd = std::process::Command::new("git");
+    cmd.arg("init");
+
+    let output = cmd
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .output()?;
+
+    if !output.status.success() {
+        let err_msg = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Git init failed: {}", err_msg).into());
+    }
+    Ok(())
+}

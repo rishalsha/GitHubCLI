@@ -126,6 +126,10 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                     if let Event::Key(key) = event {
                         match key.code {
                             KeyCode::Char('q') => return Ok(()),
+                            KeyCode::Char('/') => {
+                                app.mode = AppMode::Searching;
+                                app.input = tui_input::Input::new(app.search_query.clone());
+                            }
                             KeyCode::Char('c') => {
                                 app.mode = AppMode::CreatingRepoName;
                             }
@@ -139,6 +143,15 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                                 if !app.repos.is_empty() {
                                     app.mode = AppMode::CloningRepoPath;
                                 }
+                            }
+                            KeyCode::Char('r') => {
+                                if !app.repos.is_empty() {
+                                    app.mode = AppMode::AddingRemoteName;
+                                    app.input.reset();
+                                }
+                            }
+                            KeyCode::Char('o') | KeyCode::Char('b') => {
+                                app.open_selected_repo_in_browser();
                             }
                             KeyCode::Down | KeyCode::Char('j') => app.next(),
                             KeyCode::Up | KeyCode::Char('k') => app.previous(),
@@ -262,6 +275,68 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                             _ => {
                                 app.input.handle_event(&Event::Key(key));
                             }
+                        }
+                    }
+                }
+                AppMode::AddingRemoteName => {
+                    if let Event::Key(key) = event {
+                        match key.code {
+                            KeyCode::Enter => {
+                                let remote_name = app.input.value().trim().to_string();
+                                app.input.reset();
+                                app.add_remote_to_repo(&remote_name);
+                            }
+                            KeyCode::Esc => {
+                                app.mode = AppMode::Normal;
+                                app.input.reset();
+                            }
+                            _ => {
+                                app.input.handle_event(&Event::Key(key));
+                            }
+                        }
+                    }
+                }
+                AppMode::Searching => {
+                    if let Event::Key(key) = event {
+                        match key.code {
+                            KeyCode::Enter | KeyCode::Esc => {
+                                app.mode = AppMode::Normal;
+                            }
+                            _ => {
+                                app.input.handle_event(&Event::Key(key));
+                                app.search_query = app.input.value().to_string();
+                                app.filter_repos();
+                            }
+                        }
+                    }
+                }
+                AppMode::PromptInitGit { ref remote_name, ref clone_url } => {
+                    if let Event::Key(key) = event {
+                        match key.code {
+                            KeyCode::Enter => {
+                                let remote_name = remote_name.clone();
+                                let clone_url = clone_url.clone();
+                                match github::init_git() {
+                                    Ok(_) => {
+                                        match github::add_remote(&remote_name, &clone_url) {
+                                            Ok(_) => {
+                                                app.mode = AppMode::Message(format!("Git initialized and remote '{}' added successfully!", remote_name));
+                                            }
+                                            Err(e) => {
+                                                app.mode = AppMode::Error(e.to_string());
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        app.mode = AppMode::Error(e.to_string());
+                                    }
+                                }
+                            }
+                            KeyCode::Esc => {
+                                app.mode = AppMode::Normal;
+                                app.input.reset();
+                            }
+                            _ => {}
                         }
                     }
                 }

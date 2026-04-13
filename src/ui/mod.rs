@@ -32,6 +32,9 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         AppMode::Message(msg) => draw_message_popup(f, msg.clone(), "Success".to_string()),
         AppMode::CloningRepoPath => draw_clone_repo_path_popup(f, app),
         AppMode::CloningRepoRename => draw_clone_repo_rename_popup(f, app),
+        AppMode::AddingRemoteName => draw_add_remote_name_popup(f, app),
+        AppMode::Searching => draw_search_popup(f, app),
+        AppMode::PromptInitGit { remote_name, .. } => draw_prompt_init_git_popup(f, remote_name),
         _ => {}
     }
 }
@@ -39,13 +42,17 @@ pub fn ui(f: &mut Frame, app: &mut App) {
 fn draw_footer(f: &mut Frame, area: Rect) {
     let footer_text = vec![
         Span::styled("c", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw(": create repo  |  "),
-        Span::styled("Enter / d", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw(": clone repo  |  "),
-        Span::styled("x / Del", Style::default().add_modifier(Modifier::BOLD).fg(Color::Red)),
-        Span::raw(": delete repo  |  "),
-        Span::styled("x / Del", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw(": delete repo  |  "),
+        Span::raw(": create  |  "),
+        Span::styled("Enter/d", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": clone  |  "),
+        Span::styled("/", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": search  |  "),
+        Span::styled("r", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": add remote  |  "),
+        Span::styled("o/b", Style::default().add_modifier(Modifier::BOLD).fg(Color::Cyan)),
+        Span::raw(": open browser  |  "),
+        Span::styled("x/Del", Style::default().add_modifier(Modifier::BOLD).fg(Color::Red)),
+        Span::raw(": delete  |  "),
         Span::styled("↑/↓ or j/k", Style::default().add_modifier(Modifier::BOLD)),
         Span::raw(": navigate  |  "),
         Span::styled("q", Style::default().add_modifier(Modifier::BOLD)),
@@ -140,7 +147,12 @@ fn draw_right_pane(f: &mut Frame, app: &mut App, area: Rect) {
             Line::from(repo.description.as_deref().unwrap_or("No description provided.")),
             Line::from(""),
             Line::from(""),
-            Line::from(Span::styled("Press 'Enter' or 'd' to clone this repository.", Style::default().fg(Color::Yellow))),
+            Line::from(Span::styled("Available Actions:", Style::default().add_modifier(Modifier::BOLD))),
+            Line::from(vec![Span::styled(" c ", Style::default().add_modifier(Modifier::BOLD).bg(Color::DarkGray)), Span::raw(" Create new repository")]),
+            Line::from(vec![Span::styled(" d / Enter ", Style::default().add_modifier(Modifier::BOLD).bg(Color::DarkGray)), Span::raw(" Clone repository")]),
+            Line::from(vec![Span::styled(" r ", Style::default().add_modifier(Modifier::BOLD).bg(Color::DarkGray)), Span::raw(" Add as git remote")]),
+            Line::from(vec![Span::styled(" o / b ", Style::default().add_modifier(Modifier::BOLD).bg(Color::DarkGray)), Span::raw(" Open in browser")]),
+            Line::from(vec![Span::styled(" x / Del ", Style::default().add_modifier(Modifier::BOLD).bg(Color::DarkGray)), Span::styled(" Delete repository", Style::default().fg(Color::Red))]),
         ];
 
         let detail_block = Paragraph::new(repo_info)
@@ -324,7 +336,66 @@ fn draw_clone_repo_rename_popup(f: &mut Frame, app: &mut App) {
         area.y + 1
     ));
 }
+fn draw_add_remote_name_popup(f: &mut Frame, app: &mut App) {
+    let block = Block::default()
+        .title("Add remote name (default: origin)")
+        .borders(Borders::ALL)
+        .style(Style::default().fg(Color::Yellow));
 
+    let area = centered_rect(50, 20, f.area());
+    f.render_widget(Clear, area);
+    
+    let text = format!("Remote: {}\n\nPress Enter to proceed.", app.input.value());
+    let p = Paragraph::new(text)
+        .wrap(Wrap { trim: true })
+        .block(block);
+    
+    f.render_widget(p, area);
+
+    f.set_cursor_position((
+        area.x + 1 + app.input.cursor() as u16 + 8, // 8 for "Remote: "
+        area.y + 1,
+    ));
+}
+
+fn draw_search_popup(f: &mut Frame, app: &mut App) {
+    let block = Block::default()
+        .title("Search Repositories")
+        .borders(Borders::ALL)
+        .style(Style::default().fg(Color::Yellow));
+
+    let area = centered_rect(50, 20, f.area());
+    f.render_widget(Clear, area);
+
+    let text = format!("Query: {}\n\nType to filter. Press Enter or Esc to dismiss.", app.input.value());
+    let p = Paragraph::new(text)
+        .wrap(Wrap { trim: true })
+        .block(block);
+
+    f.render_widget(p, area);
+
+    f.set_cursor_position((
+        area.x + 1 + app.input.cursor() as u16 + 7, // 7 for "Query: "
+        area.y + 1,
+    ));
+}
+
+fn draw_prompt_init_git_popup(f: &mut Frame, remote_name: &str) {
+    let block = Block::default()
+        .title("Not a Git Repository")
+        .borders(Borders::ALL)
+        .style(Style::default().fg(Color::Yellow));
+
+    let area = centered_rect(50, 20, f.area());
+    f.render_widget(Clear, area);
+    
+    let text = format!("Current directory is not a git repository.\n\nInitialize git in current directory and add remote '{}'?\n\nPress Enter to accept, Esc to cancel.", remote_name);
+    let p = Paragraph::new(text)
+        .wrap(Wrap { trim: true })
+        .block(block);
+    
+    f.render_widget(p, area);
+}
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
