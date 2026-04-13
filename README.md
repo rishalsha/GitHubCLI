@@ -20,6 +20,14 @@ A fast, terminal-based user interface (TUI) for managing your GitHub repositorie
 
 ## Installation
 
+### From crates.io (recommended)
+
+Install the latest published release directly:
+
+```bash
+cargo install ghcli
+```
+
 ### Using Make
 
 You can quickly build and install `ghcli` to your `~/.local/bin` folder using the provided Makefile. Make sure `~/.local/bin` is in your system's `PATH`.
@@ -55,9 +63,9 @@ ghcli --auth
 | `↑` / `↓` / `j`/`k` | Navigate repositories list                  |
 | `/`                 | Search repositories                         |
 | `c`                 | Create a new repository                     |
-| `Enter` / `d`       | Clone the selected repository               |
+| `d`                 | Clone the selected repository               |
 | `r`                 | Add remote (prompts for `git init` if needed)|
-| `o` / `b`           | Open selected repository in web browser     |
+| `Enter` / `o` / `b` | Open selected repository in web browser     |
 | `x` / `Del`         | Delete selected repository                  |
 | `q`                 | Quit application                            |
 
