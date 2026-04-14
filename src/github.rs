@@ -2,6 +2,7 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use directories::ProjectDirs;
 use std::fs;
+use std::path::Path;
 
 pub fn get_cache_dir() -> Option<std::path::PathBuf> {
     let dirs = ProjectDirs::from("com", "githubcli", "ghcli")?;
@@ -259,4 +260,77 @@ pub fn init_git() -> Result<(), Box<dyn std::error::Error>> {
         return Err(format!("Git init failed: {}", err_msg).into());
     }
     Ok(())
+}
+
+pub fn ensure_gitignore_exists() -> Result<bool, Box<dyn std::error::Error>> {
+    let path = Path::new(".gitignore");
+    let existed = path.exists();
+
+    if !existed {
+        fs::write(path, "")?;
+    }
+
+    Ok(existed)
+}
+
+pub fn read_gitignore_content() -> Result<String, Box<dyn std::error::Error>> {
+    let content = fs::read_to_string(".gitignore")?;
+    Ok(content)
+}
+
+pub fn open_gitignore_in_editor() -> Result<(), Box<dyn std::error::Error>> {
+    let editor = std::env::var("VISUAL")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| {
+            std::env::var("EDITOR")
+                .ok()
+                .filter(|s| !s.trim().is_empty())
+        })
+        .unwrap_or_else(|| "nano".to_string());
+
+    let mut parts = editor.split_whitespace();
+    let program = parts.next().ok_or("Invalid editor command")?;
+    let mut cmd = std::process::Command::new(program);
+    cmd.args(parts);
+    cmd.arg(".gitignore");
+
+    let status = cmd.status()?;
+    if !status.success() {
+        return Err(format!("Editor exited with status: {}", status).into());
+    }
+
+    Ok(())
+}
+
+pub fn git_add_all() -> Result<(), Box<dyn std::error::Error>> {
+    let mut cmd = std::process::Command::new("git");
+    cmd.arg("add");
+    cmd.arg(".");
+
+    let output = cmd
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .output()?;
+
+    if !output.status.success() {
+        let err_msg = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("git add failed: {}", err_msg).into());
+    }
+
+    Ok(())
+}
+
+pub fn is_git_repo() -> bool {
+    let output = std::process::Command::new("git")
+        .arg("rev-parse")
+        .arg("--is-inside-work-tree")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .output();
+
+    match output {
+        Ok(out) => out.status.success() && String::from_utf8_lossy(&out.stdout).trim() == "true",
+        Err(_) => false,
+    }
 }

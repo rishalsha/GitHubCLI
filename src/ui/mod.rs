@@ -34,6 +34,8 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         AppMode::CloningRepoRename => draw_clone_repo_rename_popup(f, app),
         AppMode::AddingRemoteName => draw_add_remote_name_popup(f, app),
         AppMode::Searching => draw_search_popup(f, app),
+        AppMode::InitGitConfirmation => draw_init_git_confirmation_popup(f),
+        AppMode::InitGitGitignoreReview => draw_init_git_gitignore_review_popup(f, app),
         AppMode::PromptInitGit { remote_name, .. } => draw_prompt_init_git_popup(f, remote_name),
         _ => {}
     }
@@ -49,6 +51,8 @@ fn draw_footer(f: &mut Frame, area: Rect) {
         Span::raw(": search  |  "),
         Span::styled("r", Style::default().add_modifier(Modifier::BOLD)),
         Span::raw(": add remote  |  "),
+        Span::styled("i", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": init git  |  "),
         Span::styled("Enter/o/b", Style::default().add_modifier(Modifier::BOLD).fg(Color::Cyan)),
         Span::raw(": open browser  |  "),
         Span::styled("x/Del", Style::default().add_modifier(Modifier::BOLD).fg(Color::Red)),
@@ -132,6 +136,7 @@ fn draw_details_pane(f: &mut Frame, app: &mut App, area: Rect) {
             Line::from(vec![Span::styled(" c ", Style::default().add_modifier(Modifier::BOLD).bg(Color::DarkGray)), Span::raw(" Create new repository")]),
             Line::from(vec![Span::styled(" d / Enter ", Style::default().add_modifier(Modifier::BOLD).bg(Color::DarkGray)), Span::raw(" Clone repository")]),
             Line::from(vec![Span::styled(" r ", Style::default().add_modifier(Modifier::BOLD).bg(Color::DarkGray)), Span::raw(" Add as git remote")]),
+            Line::from(vec![Span::styled(" i ", Style::default().add_modifier(Modifier::BOLD).bg(Color::DarkGray)), Span::raw(" Initialize git in current directory")]),
             Line::from(vec![Span::styled(" o / b ", Style::default().add_modifier(Modifier::BOLD).bg(Color::DarkGray)), Span::raw(" Open in browser")]),
             Line::from(vec![Span::styled(" x / Del ", Style::default().add_modifier(Modifier::BOLD).bg(Color::DarkGray)), Span::styled(" Delete repository", Style::default().fg(Color::Red))]),
         ];
@@ -395,6 +400,49 @@ fn draw_prompt_init_git_popup(f: &mut Frame, remote_name: &str) {
         .wrap(Wrap { trim: true })
         .block(block);
     
+    f.render_widget(p, area);
+}
+
+fn draw_init_git_confirmation_popup(f: &mut Frame) {
+    let block = Block::default()
+        .title("Initialize Git")
+        .borders(Borders::ALL)
+        .style(Style::default().fg(Color::Yellow));
+
+    let area = centered_rect(58, 24, f.area());
+    f.render_widget(Clear, area);
+
+    let text = "Initialize git in the current directory?\n\nPress Enter to continue, Esc to cancel.";
+    let p = Paragraph::new(text)
+        .wrap(Wrap { trim: true })
+        .block(block);
+
+    f.render_widget(p, area);
+}
+
+fn draw_init_git_gitignore_review_popup(f: &mut Frame, app: &App) {
+    let block = Block::default()
+        .title("Review .gitignore")
+        .borders(Borders::ALL)
+        .style(Style::default().fg(Color::Yellow));
+
+    let area = centered_rect(72, 72, f.area());
+    f.render_widget(Clear, area);
+
+    let content = if app.gitignore_content.is_empty() {
+        "(empty .gitignore)".to_string()
+    } else {
+        app.gitignore_content.clone()
+    };
+
+    let text = format!(
+        "Current .gitignore content:\n\n{}\n\nPress e to edit .gitignore, Enter to continue and run git add ., Esc to cancel.",
+        content
+    );
+    let p = Paragraph::new(text)
+        .wrap(Wrap { trim: true })
+        .block(block);
+
     f.render_widget(p, area);
 }
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {

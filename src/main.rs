@@ -5,7 +5,7 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{Terminal, backend::CrosstermBackend};
-use std::{error::Error, io};
+use std::{error::Error, io, time::{Duration, Instant}};
 
 mod app;
 mod auth;
@@ -147,6 +147,10 @@ async fn run_app(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut App,
 ) -> Result<(), Box<dyn Error>> {
+    const MESSAGE_AUTO_CLOSE_AFTER: Duration = Duration::from_millis(800);
+    let mut message_deadline: Option<Instant> = None;
+    let mut active_message: Option<String> = None;
+
     loop {
         // Poll for asynchronous app updates from background fetches
         if let Some(ref mut rx) = app.update_rx {
@@ -173,6 +177,30 @@ async fn run_app(
                         app.mode = AppMode::Error(format!("Failed to load repos: {}", e));
                     }
                 }
+            }
+        }
+
+        match &app.mode {
+            AppMode::Message(msg) => {
+                let is_new_message = active_message.as_deref() != Some(msg.as_str());
+                if is_new_message {
+                    active_message = Some(msg.clone());
+                    message_deadline = Some(Instant::now() + MESSAGE_AUTO_CLOSE_AFTER);
+                }
+
+                if let Some(deadline) = message_deadline {
+                    if Instant::now() >= deadline {
+                        app.mode = AppMode::Normal;
+                        app.input.reset();
+                        app.new_repo_name.clear();
+                        message_deadline = None;
+                        active_message = None;
+                    }
+                }
+            }
+            _ => {
+                message_deadline = None;
+                active_message = None;
             }
         }
 
@@ -208,6 +236,15 @@ async fn run_app(
                                 if !app.repos.is_empty() {
                                     app.mode = AppMode::AddingRemoteName;
                                     app.input.reset();
+                                }
+                            }
+                            KeyCode::Char('i') => {
+                                if github::is_git_repo() {
+                                    app.mode = AppMode::Error(
+                                        "Already a git repository. Aborted initializer.".into(),
+                                    );
+                                } else {
+                                    app.mode = AppMode::InitGitConfirmation;
                                 }
                             }
                             KeyCode::Enter | KeyCode::Char('o') | KeyCode::Char('b') => {
@@ -409,7 +446,106 @@ async fn run_app(
                         }
                     }
                 }
+                AppMode::InitGitConfirmation => {
+                    if let Event::Key(key) = event {
+                        match key.code {
+                            KeyCode::Enter => {
+                                match github::init_git() {
+                                    Ok(_) => {
+                                        if let Err(e) = github::ensure_gitignore_exists() {
+                                            app.mode = AppMode::Error(e.to_string());
+                                        } else {
+                                            match github::read_gitignore_content() {
+                                                Ok(content) => {
+                                                    app.gitignore_content = content;
+                                                    app.mode = AppMode::InitGitGitignoreReview;
+                                                }
+                                                Err(e) => {
+                                                    app.mode = AppMode::Error(e.to_string());
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        app.mode = AppMode::Error(e.to_string());
+                                    }
+                                }
+                            }
+                            KeyCode::Esc => {
+                                app.mode = AppMode::Normal;
+                                app.input.reset();
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                AppMode::InitGitGitignoreReview => {
+                    if let Event::Key(key) = event {
+                        match key.code {
+                            KeyCode::Char('e') => {
+                                suspend_tui(terminal)?;
+                                let edit_result = github::open_gitignore_in_editor();
+                                resume_tui(terminal)?;
+
+                                match edit_result {
+                                    Ok(_) => match github::read_gitignore_content() {
+                                        Ok(content) => {
+                                            app.gitignore_content = content;
+                                        }
+                                        Err(e) => {
+                                            app.mode = AppMode::Error(e.to_string());
+                                        }
+                                    },
+                                    Err(e) => {
+                                        app.mode = AppMode::Error(e.to_string());
+                                    }
+                                }
+                            }
+                            KeyCode::Enter => {
+                                match github::git_add_all() {
+                                    Ok(_) => {
+                                        app.mode = AppMode::Message(
+                                            "Git initialized, .gitignore reviewed, and files staged with git add ."
+                                                .into(),
+                                        );
+                                    }
+                                    Err(e) => {
+                                        app.mode = AppMode::Error(e.to_string());
+                                    }
+                                }
+                            }
+                            KeyCode::Esc => {
+                                app.mode = AppMode::Normal;
+                                app.input.reset();
+                            }
+                            _ => {}
+                        }
+                    }
+                }
             }
         }
     }
+}
+
+fn suspend_tui(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<(), Box<dyn Error>> {
+    disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+    terminal.show_cursor()?;
+    Ok(())
+}
+
+fn resume_tui(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<(), Box<dyn Error>> {
+    enable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        EnterAlternateScreen,
+        EnableMouseCapture
+    )?;
+    terminal.clear()?;
+    terminal.hide_cursor()?;
+    Ok(())
 }

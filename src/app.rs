@@ -11,6 +11,8 @@ pub enum AppMode {
     DeletingRepoConfirmation,
     AddingRemoteName,
     Searching,
+    InitGitConfirmation,
+    InitGitGitignoreReview,
     PromptInitGit { remote_name: String, clone_url: String },
     Error(String),
     Message(String),
@@ -34,6 +36,7 @@ pub struct App {
     pub new_repo_name: String,
     pub new_repo_private: bool,
     pub clone_path: String,
+    pub gitignore_content: String,
     pub update_rx: Option<tokio::sync::mpsc::UnboundedReceiver<AppUpdate>>,
 }
 
@@ -50,6 +53,7 @@ impl App {
             new_repo_name: String::new(),
             new_repo_private: false,
             clone_path: String::new(),
+            gitignore_content: String::new(),
             update_rx: None,
         }
     }
